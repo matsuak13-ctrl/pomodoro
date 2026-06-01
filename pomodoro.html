@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro Timer</title>
+<style>
+  :root{
+    --bg1:#eaf4ff; --bg2:#dcebfb; --bg3:#cfe2f7;
+    --ink:#3a5673; --ink-soft:#7894b3;
+    --accent:#6fa8e6; --accent-deep:#5a90d4;
+    --ring-track:#d4e6fa; --card:rgba(255,255,255,.62);
+    --glow:rgba(122,170,229,.45);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',system-ui,-apple-system,sans-serif;
+    background:linear-gradient(150deg,var(--bg1),var(--bg2) 55%,var(--bg3));
+    min-height:100%;display:flex;align-items:center;justify-content:center;
+    padding:22px;color:var(--ink);overflow:hidden;
+  }
+  .blob{position:fixed;border-radius:50%;filter:blur(46px);opacity:.5;pointer-events:none;z-index:0}
+  .blob.a{width:280px;height:280px;background:#bcd8fa;top:-90px;left:-70px}
+  .blob.b{width:230px;height:230px;background:#d3e7fc;bottom:-80px;right:-60px}
+  .card{
+    position:relative;z-index:1;width:100%;max-width:380px;
+    background:var(--card);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border:1px solid rgba(255,255,255,.7);border-radius:30px;
+    padding:30px 28px 26px;text-align:center;
+    box-shadow:0 18px 50px -18px var(--glow),0 2px 0 rgba(255,255,255,.6) inset;
+  }
+  .modes{display:flex;gap:6px;background:rgba(255,255,255,.45);padding:5px;border-radius:16px;margin-bottom:26px}
+  .modes button{
+    flex:1;border:0;background:transparent;color:var(--ink-soft);
+    font-size:13px;font-weight:600;padding:9px 4px;border-radius:12px;cursor:pointer;
+    transition:.25s;letter-spacing:.02em;font-family:inherit;
+  }
+  .modes button.active{background:#fff;color:var(--accent-deep);box-shadow:0 4px 12px -4px var(--glow)}
+
+  .dial{position:relative;width:230px;height:230px;margin:4px auto 22px}
+  .dial svg{transform:rotate(-90deg);width:100%;height:100%}
+  .dial .track{fill:none;stroke:var(--ring-track);stroke-width:13}
+  .dial .prog{fill:none;stroke:url(#g);stroke-width:13;stroke-linecap:round;
+    transition:stroke-dashoffset .35s linear}
+  .time{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .time .clock{font-size:52px;font-weight:300;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+  .time .lbl{margin-top:4px;font-size:12px;color:var(--ink-soft);letter-spacing:.18em;text-transform:uppercase}
+
+  .controls{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:18px}
+  .btn{border:0;cursor:pointer;font-family:inherit;transition:.2s;color:#fff}
+  .btn-main{
+    background:linear-gradient(135deg,var(--accent),var(--accent-deep));
+    font-size:16px;font-weight:600;padding:14px 40px;border-radius:16px;letter-spacing:.05em;
+    box-shadow:0 12px 24px -10px var(--glow);min-width:148px;
+  }
+  .btn-main:active{transform:translateY(1px)}
+  .btn-ghost{
+    background:rgba(255,255,255,.6);color:var(--accent-deep);
+    width:46px;height:46px;border-radius:14px;font-size:18px;display:grid;place-items:center;
+  }
+  .btn-ghost:active{transform:translateY(1px)}
+
+  .count{font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
+  .count b{color:var(--accent-deep);font-weight:700}
+
+  .settings{
+    overflow:hidden;max-height:0;opacity:0;transition:.35s ease;
+    margin-top:0;
+  }
+  .settings.open{max-height:260px;opacity:1;margin-top:20px}
+  .settings .row{
+    display:flex;align-items:center;justify-content:space-between;
+    background:rgba(255,255,255,.5);border-radius:14px;padding:10px 12px;margin-top:9px;
+  }
+  .settings .row span{font-size:13px;font-weight:600;color:var(--ink)}
+  .stepper{display:flex;align-items:center;gap:10px}
+  .stepper button{
+    width:30px;height:30px;border:0;border-radius:9px;cursor:pointer;font-size:18px;
+    background:#fff;color:var(--accent-deep);font-family:inherit;box-shadow:0 3px 8px -4px var(--glow)
+  }
+  .stepper button:active{transform:translateY(1px)}
+  .stepper .val{min-width:30px;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .gear{margin-top:14px}
+  .gear button{
+    background:none;border:0;color:var(--ink-soft);font-size:12px;cursor:pointer;
+    font-family:inherit;letter-spacing:.06em;padding:6px 10px;border-radius:10px;transition:.2s
+  }
+  .gear button:hover{color:var(--accent-deep)}
+</style>
+</head>
+<body>
+  <div class="blob a"></div>
+  <div class="blob b"></div>
+
+  <div class="card">
+    <div class="modes" id="modes">
+      <button data-mode="focus" class="active">集中</button>
+      <button data-mode="short">小休憩</button>
+      <button data-mode="long">長休憩</button>
+    </div>
+
+    <div class="dial">
+      <svg viewBox="0 0 230 230">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#8cc0f5"/>
+            <stop offset="1" stop-color="#5a90d4"/>
+          </linearGradient>
+        </defs>
+        <circle class="track" cx="115" cy="115" r="100"/>
+        <circle class="prog" id="prog" cx="115" cy="115" r="100"/>
+      </svg>
+      <div class="time">
+        <div class="clock" id="clock">25:00</div>
+        <div class="lbl" id="lbl">FOCUS</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-ghost" id="reset" title="リセット">↻</button>
+      <button class="btn btn-main" id="toggle">スタート</button>
+      <button class="btn btn-ghost" id="skip" title="スキップ">⇥</button>
+    </div>
+
+    <div class="count">完了したポモドーロ: <b id="done">0</b></div>
+
+    <div class="gear"><button id="gearBtn">⚙ 時間を設定</button></div>
+
+    <div class="settings" id="settings">
+      <div class="row"><span>集中</span>
+        <div class="stepper"><button data-k="focus" data-d="-1">−</button><span class="val" id="v-focus">25</span><button data-k="focus" data-d="1">+</button></div>
+      </div>
+      <div class="row"><span>小休憩</span>
+        <div class="stepper"><button data-k="short" data-d="-1">−</button><span class="val" id="v-short">5</span><button data-k="short" data-d="1">+</button></div>
+      </div>
+      <div class="row"><span>長休憩</span>
+        <div class="stepper"><button data-k="long" data-d="-1">−</button><span class="val" id="v-long">15</span><button data-k="long" data-d="1">+</button></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  var DEF={focus:25,short:5,long:15};
+  var dur=load();
+  var LBL={focus:"FOCUS",short:"SHORT BREAK",long:"LONG BREAK"};
+  var R=100, C=2*Math.PI*R;
+  var prog=document.getElementById('prog');
+  prog.style.strokeDasharray=C;
+
+  var mode='focus', total=dur.focus*60, left=total, running=false, tick=null, done=0;
+
+  function load(){
+    try{var s=JSON.parse(localStorage.getItem('pomo_dur'));if(s&&s.focus)return s;}catch(e){}
+    return Object.assign({},DEF);
+  }
+  function save(){try{localStorage.setItem('pomo_dur',JSON.stringify(dur));}catch(e){}}
+
+  function fmt(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
+  function render(){
+    document.getElementById('clock').textContent=fmt(left);
+    document.getElementById('lbl').textContent=LBL[mode];
+    prog.style.strokeDashoffset=C*(1-left/total);
+    document.getElementById('toggle').textContent=running?'一時停止':'スタート';
+    document.title=fmt(left)+' · '+(mode==='focus'?'集中':'休憩');
+  }
+  function setMode(m){
+    mode=m;total=dur[m]*60;left=total;stop();
+    document.querySelectorAll('#modes button').forEach(function(b){b.classList.toggle('active',b.dataset.mode===m);});
+    render();
+  }
+  function start(){
+    if(running)return;running=true;
+    var end=Date.now()+left*1000;
+    tick=setInterval(function(){
+      left=Math.max(0,Math.round((end-Date.now())/1000));
+      if(left<=0){left=0;render();finish();return;}
+      render();
+    },250);
+    render();
+  }
+  function stop(){running=false;if(tick){clearInterval(tick);tick=null;}render();}
+  function finish(){
+    stop();chime();
+    if(mode==='focus'){done++;document.getElementById('done').textContent=done;
+      setMode(done%4===0?'long':'short');}
+    else{setMode('focus');}
+  }
+  function chime(){
+    try{
+      var a=new (window.AudioContext||window.webkitAudioContext)();
+      [880,1320,1760].forEach(function(f,i){
+        var o=a.createOscillator(),g=a.createGain();
+        o.frequency.value=f;o.type='sine';o.connect(g);g.connect(a.destination);
+        var t=a.currentTime+i*0.18;
+        g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.22,t+0.03);
+        g.gain.exponentialRampToValueAtTime(.001,t+0.4);
+        o.start(t);o.stop(t+0.42);
+      });
+    }catch(e){}
+  }
+
+  document.getElementById('toggle').onclick=function(){running?stop():start();};
+  document.getElementById('reset').onclick=function(){left=total;stop();};
+  document.getElementById('skip').onclick=function(){finish();};
+  document.querySelectorAll('#modes button').forEach(function(b){b.onclick=function(){setMode(b.dataset.mode);};});
+  document.getElementById('gearBtn').onclick=function(){document.getElementById('settings').classList.toggle('open');};
+  document.querySelectorAll('.stepper button').forEach(function(b){
+    b.onclick=function(){
+      var k=b.dataset.k,d=+b.dataset.d;
+      dur[k]=Math.min(90,Math.max(1,dur[k]+d));
+      document.getElementById('v-'+k).textContent=dur[k];save();
+      if(k===mode&&!running){total=dur[k]*60;left=total;render();}
+    };
+  });
+
+  document.getElementById('v-focus').textContent=dur.focus;
+  document.getElementById('v-short').textContent=dur.short;
+  document.getElementById('v-long').textContent=dur.long;
+  setMode('focus');
+})();
+</script>
+</body>
+</html>
